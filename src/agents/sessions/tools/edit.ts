@@ -103,12 +103,50 @@ export interface EditToolOptions {
   operations?: EditOperations;
 }
 
+/**
+ * Unwrap `{item: {oldText, newText}}` entries from XML-RPC array-of-structs
+ * transport (reported with DeepSeek/XML-RPC paths). The wire format wraps each
+ * array element in an extra object: `[{item: {oldText, newText}}]` instead of
+ * the canonical `[{oldText, newText}]`.
+ *
+ * This normalizer runs in `prepareEditArguments`, which is invoked before
+ * `wrapToolParamValidation` — see {@link normalizeXmlRpcEditEntries} in
+ * `AgentTool.prepareArguments`.
+ */
+export function normalizeXmlRpcEditEntries(edits: unknown): unknown {
+  if (!Array.isArray(edits)) return edits;
+  return edits.map((edit: unknown) => {
+    if (edit && typeof edit === "object" && !Array.isArray(edit)) {
+      const entry = edit as Record<string, unknown>;
+      if (
+        entry.item &&
+        typeof entry.item === "object" &&
+        !Array.isArray(entry.item) &&
+        Object.keys(entry).length === 1
+      ) {
+        const inner = entry.item as Record<string, unknown>;
+        if (typeof inner.oldText === "string" || typeof inner.newText === "string") {
+          return inner;
+        }
+      }
+    }
+    return edit;
+  });
+}
+
 function prepareEditArguments(input: unknown): EditToolInput {
   if (!input || typeof input !== "object") {
     return input as EditToolInput;
   }
 
   const args = input as Record<string, unknown>;
+
+  // Normalize XML-RPC wrapped edits before any other processing so that
+  // downstream validation (wrapToolParamValidation, REQUIRED_PARAM_GROUPS.edit)
+  // sees canonical [{oldText, newText}] entries.
+  if (Array.isArray(args.edits)) {
+    args.edits = normalizeXmlRpcEditEntries(args.edits);
+  }
 
   // Some models (Opus 4.6, GLM-5.1) send edits as a JSON string instead of an array
   if (typeof args.edits === "string") {

@@ -5,7 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Theme } from "../../modes/interactive/theme/theme.js";
-import { createEditTool, createEditToolDefinition, type EditOperations } from "./edit.js";
+import {
+  createEditTool,
+  createEditToolDefinition,
+  type EditOperations,
+  normalizeXmlRpcEditEntries,
+} from "./edit.js";
 
 const testTheme = {
   bg: (_name: string, text: string) => text,
@@ -518,5 +523,65 @@ describe("edit tool", () => {
     const tc1 = result.content[0];
     expect("text" in tc1 ? tc1.text : "").toContain("Successfully replaced");
     await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("new content\n");
+  });
+
+  describe("XML-RPC edit entry unwrap", () => {
+    it("unwraps {item: {oldText, newText}} to canonical form", () => {
+      const wrapped = [{ item: { oldText: "original", newText: "replaced" } }];
+      const result = normalizeXmlRpcEditEntries(wrapped) as Array<{
+        oldText: string;
+        newText: string;
+      }>;
+      expect(result).toEqual([{ oldText: "original", newText: "replaced" }]);
+    });
+
+    it("unwraps mixed wrapped + canonical entries", () => {
+      const mixed = [
+        { item: { oldText: "alpha", newText: "ALPHA" } },
+        { oldText: "gamma", newText: "GAMMA" },
+      ];
+      const result = normalizeXmlRpcEditEntries(mixed) as Array<{
+        oldText: string;
+        newText: string;
+      }>;
+      expect(result).toEqual([
+        { oldText: "alpha", newText: "ALPHA" },
+        { oldText: "gamma", newText: "GAMMA" },
+      ]);
+    });
+
+    it("passes through canonical entries unchanged", () => {
+      const canonical = [{ oldText: "keep", newText: "changed" }];
+      const result = normalizeXmlRpcEditEntries(canonical);
+      expect(result).toEqual([{ oldText: "keep", newText: "changed" }]);
+    });
+
+    it("preserves non-item single-key objects as-is", () => {
+      const other = [{ other: { oldText: "x", newText: "y" } }];
+      const result = normalizeXmlRpcEditEntries(other);
+      expect(result).toEqual([{ other: { oldText: "x", newText: "y" } }]);
+    });
+
+    it("preserves multi-key objects with item as-is", () => {
+      const multiKey = [{ item: { oldText: "x", newText: "y" }, extra: 1 }];
+      const result = normalizeXmlRpcEditEntries(multiKey);
+      expect(result).toEqual([{ item: { oldText: "x", newText: "y" }, extra: 1 }]);
+    });
+
+    it("preserves non-object entries unchanged", () => {
+      const nonObjects = ["not-an-object"];
+      const result = normalizeXmlRpcEditEntries(nonObjects);
+      expect(result).toEqual(["not-an-object"]);
+    });
+
+    it("preserves empty array", () => {
+      expect(normalizeXmlRpcEditEntries([])).toEqual([]);
+    });
+
+    it("preserves non-array input unchanged", () => {
+      expect(normalizeXmlRpcEditEntries("string")).toBe("string");
+      expect(normalizeXmlRpcEditEntries(null)).toBe(null);
+      expect(normalizeXmlRpcEditEntries(undefined)).toBe(undefined);
+    });
   });
 });
