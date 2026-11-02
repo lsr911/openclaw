@@ -39,7 +39,7 @@ describe("discord actions contract", () => {
           },
         } as OpenClawConfig,
         expectedActions: ["send", "poll", "react", "reactions", "emoji-list"],
-        expectedCapabilities: ["presentation"],
+        expectedCapabilities: ["presentation", "delivery-pin"],
       },
     ],
   });

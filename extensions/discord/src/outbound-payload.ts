@@ -29,6 +29,7 @@ import {
   discordInboundEventDelivery,
   notifyDiscordInboundEventOutboundPayloadSuccess,
 } from "./inbound-event-delivery.js";
+import { withDiscordRequestAuthority } from "./internal/request-authority.js";
 import { normalizeDiscordOutboundTarget } from "./normalize.js";
 import {
   resolveDiscordComponentSpec,
@@ -45,6 +46,7 @@ import {
 } from "./send.receipt.js";
 import type { DiscordSendComponents, DiscordSendEmbeds } from "./send.shared.js";
 import type { DiscordSendResult } from "./send.types.js";
+import { parseDiscordTarget } from "./target-parsing.js";
 
 type DiscordSendRuntime = typeof import("./send.js");
 
@@ -178,6 +180,7 @@ export const discordOutbound: ChannelOutboundAdapter = {
   normalizePayload: ({ payload }) => normalizeDiscordApprovalPayload(payload),
   presentationCapabilities: DISCORD_PRESENTATION_CAPABILITIES,
   deliveryCapabilities: {
+    pin: true,
     durableFinal: {
       text: true,
       media: true,
@@ -188,6 +191,28 @@ export const discordOutbound: ChannelOutboundAdapter = {
       thread: true,
       messageSendingHooks: true,
     },
+  },
+  pinDeliveredMessage: async ({ cfg, target, messageId, assertDirectAdapterHandoff }) => {
+    const gate = createDiscordActionGate({ cfg, accountId: target.accountId ?? undefined });
+    if (!gate("pins")) {
+      throw new Error("Discord message pins are disabled for this account.");
+    }
+    const { pinMessageDiscord } = await import("./send.messages.js");
+    const resolvedTo = resolveDiscordAttachedOutboundTarget({
+      to: target.to,
+      threadId: target.threadId,
+    });
+    const channelId = parseDiscordTarget(resolvedTo, { defaultKind: "channel" })?.id;
+    if (!channelId) {
+      throw new Error(`Discord delivery pin requires a channel target, got "${resolvedTo}"`);
+    }
+    await withDiscordRequestAuthority(assertDirectAdapterHandoff, () =>
+      pinMessageDiscord(channelId, messageId, {
+        cfg,
+        accountId: target.accountId ?? undefined,
+        verbose: false,
+      }),
+    );
   },
   renderPresentation: buildDiscordPresentationPayload,
   resolveTarget: ({ to, allowFrom }) => normalizeDiscordOutboundTarget(to, allowFrom),

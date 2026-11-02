@@ -162,7 +162,7 @@ export const discordMessageActions: ChannelMessageActionAdapter = {
     });
     return {
       actions: Array.from(actions),
-      capabilities: ["presentation"],
+      capabilities: ["presentation", ...(isEnabled("pins") ? ["delivery-pin"] : [])],
       schema,
     };
   },
