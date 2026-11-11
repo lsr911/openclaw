@@ -320,11 +320,28 @@ export function itemMeta(
   return undefined;
 }
 
-export function itemOutputText(
+/**
+ * Complete observed native output, trimmed, without the presentation preview bound.
+ *
+ * Diagnostic surfaces (runtime trajectory `tool.result.output`) must persist the text
+ * that was actually observed; applying `truncateNativeToolTranscriptText` here would
+ * discard an already-available result and make the stored record disagree with the
+ * native output it claims to describe. Structural/event/capture budgets and redaction
+ * still apply downstream.
+ */
+export function itemObservedOutputTextForDiagnostics(
   item: CodexThreadItem,
   outputTextByItem?: ReadonlyMap<string, string>,
 ): string | undefined {
   const output = itemObservedOutputText(item, outputTextByItem)?.trim();
+  return output ? output : undefined;
+}
+
+export function itemOutputText(
+  item: CodexThreadItem,
+  outputTextByItem?: ReadonlyMap<string, string>,
+): string | undefined {
+  const output = itemObservedOutputTextForDiagnostics(item, outputTextByItem);
   return output ? truncateNativeToolTranscriptText(output, "Codex") : undefined;
 }
 

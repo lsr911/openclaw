@@ -1,0 +1,5 @@
+# Exact net test-line growth from the #197352 regression (complete native command output in the runtime
+# trajectory): a projector-level case driving item/started + item/completed + turnCompleted and asserting
+# both the runtime-trajectory tool.result payload and the bounded itemOutputText preview.
+# Net growth is +38 lines; main's baseline carries 16 lines of slack, so this credit closes the gap at 22.
+22

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNativeCommandItem } from "./event-projector-command.test-support.js";
 import { createConfiguredProjection } from "./event-projector-projection.test-support.js";
+import { itemOutputText } from "./event-projector-tool-items.js";
 import * as projectorValues from "./event-projector-values.js";
 import {
   notify,
@@ -311,6 +312,43 @@ describe("streamed-output-echo", () => {
     expect(output).toContain("OpenClaw truncated Codex native tool output");
     expect(JSON.stringify(result.messagesSnapshot)).not.toContain(summary.slice(0, 1_000));
     expect(JSON.stringify(result.messagesSnapshot)).not.toContain(chunks.join("").trim());
+  });
+});
+
+describe("runtime trajectory output fidelity", () => {
+  it("records the complete native command output in the runtime trajectory", async () => {
+    const trajectoryEvents: Array<{ type: string; data: Record<string, unknown> }> = [];
+    const { projector } = await createConfiguredProjection(
+      { verboseLevel: "full" },
+      {
+        trajectoryRecorder: {
+          recordEvent: (type: string, data?: Record<string, unknown>) => {
+            if (data) {
+              trajectoryEvents.push({ type, data });
+            }
+          },
+          flush: async () => undefined,
+        },
+      },
+    );
+    const output = `BEGIN\n${"x".repeat(16_000)}\nTRAJECTORY_TAIL`;
+    const item = createNativeCommandItem({ id: "cmd-long-output", aggregatedOutput: output });
+    await startCommand(projector, item);
+    await itemEvent(projector, "completed", item);
+    await projector.handleNotification(h.turnCompleted());
+
+    const toolResultEvents = trajectoryEvents.filter(
+      (event) => event.type === "tool.result" && event.data["itemId"] === "cmd-long-output",
+    );
+    expect(toolResultEvents).toHaveLength(1);
+    expect(toolResultEvents[0]?.data["output"]).toBe(output);
+
+    // The presentation accessor keeps the existing 10,000-character bound; only the
+    // diagnostic recorder is allowed to see the complete observed output.
+    const preview = itemOutputText(item);
+    expect(preview).toHaveLength(10_000);
+    expect(preview).toContain("OpenClaw truncated Codex native tool output");
+    expect(preview).not.toContain("TRAJECTORY_TAIL");
   });
 });
 

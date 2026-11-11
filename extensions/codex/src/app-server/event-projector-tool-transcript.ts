@@ -27,7 +27,7 @@ import {
 import {
   isNativePostToolUseRelayItem,
   itemMeta,
-  itemOutputText,
+  itemObservedOutputTextForDiagnostics,
   itemToolArgs,
   itemToolError,
   itemToolResult,
@@ -496,7 +496,9 @@ export class CodexToolTranscriptProjection {
     const toolResult = itemToolResult(params.item);
     const output =
       this.progress.approvalTimeoutExplanation(params.item.id, params.status) ??
-      itemOutputText(params.item, this.progress.outputTextByItem);
+      // Persisted diagnostics keep the complete observed output; the preview bound belongs
+      // to presentation surfaces (`itemOutputText`), not to the trajectory record. See #197352.
+      itemObservedOutputTextForDiagnostics(params.item, this.progress.outputTextByItem);
     const status =
       params.status === "running" ? "running" : auditNativeToolTerminalStatus(params.item);
     this.options.trajectoryRecorder.recordEvent("tool.result", {
