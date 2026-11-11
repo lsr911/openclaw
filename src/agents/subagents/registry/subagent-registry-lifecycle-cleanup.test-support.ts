@@ -472,6 +472,9 @@ export function registerDeliveryRetryOwnerTests({
           await advanceRetry();
         }
         expect(countPendingDescendantRuns).toHaveBeenCalledTimes(4);
+        expect(countPendingDescendantRuns.mock.calls[0]?.[2]).toEqual({
+          excludeSuspendedDelivery: true,
+        });
         expect(read().requesterSettleWake).toBeUndefined();
         expect(read().delivery?.status).toBe("pending");
         expect(controller.scheduledResumeTimers.size).toBe(1);

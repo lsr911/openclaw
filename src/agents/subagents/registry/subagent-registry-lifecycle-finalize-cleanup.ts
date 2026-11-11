@@ -278,9 +278,14 @@ export const finalizeSubagentCleanup = async (
       ? ANNOUNCE_COMPLETION_HARD_EXPIRY_MS
       : ANNOUNCE_EXPIRY_MS;
   const expired = Date.now() >= resolveAnnounceDeliveryDeadline(entry, Date.now(), expiryMs);
+  // A descendant whose delivery is already suspended is settled, not active: counting it here
+  // would defer the announce for the whole hard expiry and then drop the completion (see
+  // hasDescendantRunAwaitingSettle, which treats suspended delivery as settled).
   const activeDescendantRuns = expired
     ? 0
-    : await params.countPendingDescendantRuns(entry.childSessionKey, assertCurrent);
+    : await params.countPendingDescendantRuns(entry.childSessionKey, assertCurrent, {
+        excludeSuspendedDelivery: true,
+      });
   assertCurrent();
   const now = Date.now();
   const decision: {

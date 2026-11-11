@@ -1,0 +1,3 @@
+# Suspended descendant deliveries count as settled in the subagent completion announce gate,
+# so the wiring assertion in the detached-cleanup retry test grows by exactly three lines.
+3
