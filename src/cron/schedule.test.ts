@@ -115,4 +115,46 @@ describe("cron schedule", () => {
       undefined,
     );
   });
+
+  describe("expressions whose day-of-month outlives shorter months", () => {
+    const cases = [
+      {
+        label: "leap-day anniversary",
+        expr: "0 0 29 2 *",
+        now: "2028-06-01T00:00:00.000Z",
+        next: "2032-02-29T00:00:00.000Z",
+        previous: "2028-02-29T00:00:00.000Z",
+      },
+      {
+        label: "six-field leap-day anniversary",
+        expr: "0 0 0 29 2 *",
+        now: "2028-03-02T00:00:00.000Z",
+        next: "2032-02-29T00:00:00.000Z",
+        previous: "2028-02-29T00:00:00.000Z",
+      },
+      {
+        label: "impossible February 31",
+        expr: "0 0 31 2 *",
+        now: "2028-06-01T00:00:00.000Z",
+        next: undefined,
+        previous: undefined,
+      },
+      {
+        label: "impossible April 31",
+        expr: "0 0 31 4 *",
+        now: "2028-06-01T00:00:00.000Z",
+        next: undefined,
+        previous: undefined,
+      },
+    ];
+    it.each(cases)("keeps $label on its bounded contract", ({ expr, now, next, previous }) => {
+      const nowMs = Date.parse(now);
+      expect(computeNextRunAtMs({ kind: "cron", expr, tz: "UTC" }, nowMs)).toBe(
+        next === undefined ? undefined : Date.parse(next),
+      );
+      expect(computePreviousRunAtMs({ kind: "cron", expr, tz: "UTC" }, nowMs)).toBe(
+        previous === undefined ? undefined : Date.parse(previous),
+      );
+    });
+  });
 });

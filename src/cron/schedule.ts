@@ -280,6 +280,44 @@ export function computeNextRunAtMs(schedule: CronSchedule, nowMs: number): numbe
     : undefined;
 }
 
+const PREVIOUS_RUN_FALLBACK_HORIZON_MS = 30 * 366 * DAY_MS;
+
+/**
+ * Croner's backward lookup recurses through a month table that assumes the
+ * pattern's day-of-month exists in every month; expressions like `0 0 29 2 *`
+ * make it throw instead of reporting "no previous run". Forward enumeration
+ * handles those expressions, so bisect the reference instant for the last
+ * occurrence that precedes it.
+ */
+function findPreviousCronRunMsByForwardSearch(cron: Cron, referenceMs: number): number | undefined {
+  const horizonMs = referenceMs - PREVIOUS_RUN_FALLBACK_HORIZON_MS;
+  const firstAfterHorizonMs = cron.nextRun(new Date(horizonMs))?.getTime();
+  if (firstAfterHorizonMs === undefined || firstAfterHorizonMs >= referenceMs) {
+    return undefined;
+  }
+  let behindMs = horizonMs;
+  let aheadMs = referenceMs;
+  while (aheadMs - behindMs > 1) {
+    const middleMs = Math.floor((behindMs + aheadMs) / 2);
+    const nextMs = cron.nextRun(new Date(middleMs))?.getTime();
+    if (nextMs !== undefined && nextMs < referenceMs) {
+      behindMs = middleMs;
+    } else {
+      aheadMs = middleMs;
+    }
+  }
+  const previousMs = cron.nextRun(new Date(behindMs))?.getTime();
+  return previousMs !== undefined && previousMs < referenceMs ? previousMs : undefined;
+}
+
+function readPreviousCronRunMs(cron: Cron, referenceMs: number): number | undefined {
+  try {
+    return cron.previousRuns(1, new Date(referenceMs))[0]?.getTime();
+  } catch {
+    return findPreviousCronRunMsByForwardSearch(cron, referenceMs);
+  }
+}
+
 /** Computes the previous cron-expression run timestamp before now. */
 export function computePreviousRunAtMs(schedule: CronSchedule, nowMs: number): number | undefined {
   if (schedule.kind !== "cron" || asDateTimestampMs(nowMs) === undefined) {
@@ -290,7 +328,7 @@ export function computePreviousRunAtMs(schedule: CronSchedule, nowMs: number): n
     return undefined;
   }
   const { cron, timezone } = resolvedCron;
-  let previousMs = cron.previousRuns(1, new Date(nowMs))[0]?.getTime();
+  let previousMs = readPreviousCronRunMs(cron, nowMs);
   if (
     previousMs !== undefined &&
     previousMs < nowMs &&
@@ -304,7 +342,7 @@ export function computePreviousRunAtMs(schedule: CronSchedule, nowMs: number): n
     const transitionMs = findCronTimezoneTransitionMs(firstCurrentOccurrenceMs, nowMs, timezone);
     if (transitionMs !== undefined) {
       const overlapEndMs = transitionMs + nowMs - firstCurrentOccurrenceMs;
-      const candidateMs = cron.previousRuns(1, new Date(overlapEndMs))[0]?.getTime();
+      const candidateMs = readPreviousCronRunMs(cron, overlapEndMs);
       if (candidateMs !== undefined) {
         previousMs = candidateMs;
       }
@@ -325,9 +363,13 @@ export function computePreviousRunAtMs(schedule: CronSchedule, nowMs: number): n
       return undefined;
     }
     const beforeTransition = new Date(transitionMs - 1_000);
-    const candidate = matchesCronOccurrence(cron, beforeTransition)
-      ? beforeTransition
-      : cron.previousRuns(1, beforeTransition)[0];
+    let candidate: Date | undefined;
+    if (matchesCronOccurrence(cron, beforeTransition)) {
+      candidate = beforeTransition;
+    } else {
+      const candidateMs = readPreviousCronRunMs(cron, beforeTransition.getTime());
+      candidate = candidateMs === undefined ? undefined : new Date(candidateMs);
+    }
     const candidateMs = candidate?.getTime();
     if (candidateMs === undefined || candidateMs >= previousMs) {
       return undefined;
