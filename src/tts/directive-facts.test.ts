@@ -92,4 +92,15 @@ describe("createTtsDirectiveTextStreamCleaner", () => {
     expect(cleaner.push("\n[[tts:Visible speech]]")).toBe("\nVisible speech");
     expect(cleaner.flush()).toBe("");
   });
+
+  it("keeps an escaped backtick from claiming directive text as code", () => {
+    // A literal backslash escapes the authored backtick, so it is not an inline
+    // code opener and the block must clean exactly like the final-text parser.
+    const text = "Before \\`literal [[tts:text]]SPEECH_ONLY[[/tts:text]] after";
+    const cleaner = createTtsDirectiveTextStreamCleaner();
+    const streamed = cleaner.push(text) + cleaner.flush();
+
+    expect(streamed).toBe(extractTtsDirectiveFacts(text).cleanedText);
+    expect(streamed).not.toContain("SPEECH_ONLY");
+  });
 });

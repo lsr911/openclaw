@@ -53,6 +53,13 @@ export function buildCodeSpanIndex(
     }
 
     if (!open) {
+      // A backslash-escaped backtick is literal text, so it cannot open an inline
+      // code span. Only the opening side consults escapes: CommonMark applies no
+      // backslash escapes inside a code span, and a run closing a span must still
+      // match the length of the run that opened it.
+      if (isEscapedBacktickRun(text, runStart)) {
+        continue;
+      }
       open = true;
       ticks = runLength;
       openStart = runStart;
@@ -79,6 +86,15 @@ export function buildCodeSpanIndex(
     isInside: (index: number) =>
       isInsideSpan(index, fenceSpans) || isInsideSpan(index, inlineSpans),
   };
+}
+
+/** True when a backtick run starts on text escaped by an odd number of backslashes. */
+function isEscapedBacktickRun(text: string, runStart: number): boolean {
+  let backslashes = 0;
+  while (runStart - backslashes - 1 >= 0 && text[runStart - backslashes - 1] === "\\") {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
 }
 
 function isInsideSpan(index: number, spans: CodeSpan[]): boolean {
