@@ -4,13 +4,13 @@ import { callGatewayFromCliWithTransport } from "./gateway-rpc.js";
 
 const DEFAULT_DEVICES_TIMEOUT_MS = 10_000;
 
-export const callDevicesGateway = async (
+export const callDevicesGateway = async <T = unknown>(
   method: string,
   opts: Parameters<typeof callGatewayFromCliWithTransport>[1],
   params?: unknown,
   callOpts?: { scopes?: OperatorScope[]; signal?: AbortSignal },
-) =>
-  callGatewayFromCliWithTransport(method, opts, params, {
+): Promise<T> =>
+  callGatewayFromCliWithTransport<T>(method, opts, params, {
     label: `Devices ${method}`,
     defaultTimeoutMs: DEFAULT_DEVICES_TIMEOUT_MS,
     scopes: callOpts?.scopes,

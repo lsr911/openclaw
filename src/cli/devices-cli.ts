@@ -1,5 +1,8 @@
 import { Option, type Command } from "commander";
 import { createLazyRuntimeMethodBinder } from "../shared/lazy-runtime.js";
+// Type-only import: erased at compile time, so the lazy runtime binder above
+// still owns loading the command module on first action.
+import type { DevicesIdentityOptions } from "./devices-identity.js";
 import { isDevicesMachineOutput } from "./devices-output-mode.js";
 import { setCommandJsonMode } from "./program/json-mode.js";
 import { applyParentDefaultHelpAction } from "./program/parent-default-help.js";
@@ -9,6 +12,7 @@ const DEFAULT_DEVICES_TIMEOUT_MS = 10_000;
 // Keep device-pairing crypto/table dependencies out of root help startup.
 const deviceAction = createLazyRuntimeMethodBinder(() => import("./devices-cli.runtime.js"));
 const joinAction = createLazyRuntimeMethodBinder(() => import("./devices-cli-join.js"));
+const identityAction = createLazyRuntimeMethodBinder(() => import("./devices-identity.js"));
 
 export function registerDevicesCli(program: Command) {
   const devices = program
@@ -21,6 +25,18 @@ export function registerDevicesCli(program: Command) {
     .command("list")
     .description("List pending and paired devices")
     .action(deviceAction((runtime) => runtime.runDevicesListCommand));
+
+  devices
+    .command("identity")
+    .description("Show this gateway's device identity, as used when another device pairs")
+    // Commander appends the Command instance to the action arguments; drop it so
+    // the handler receives only the parsed options (the runtime is injected by
+    // the lazy binder, not by Commander).
+    .action(
+      identityAction(
+        (runtime) => (opts: DevicesIdentityOptions) => runtime.runDevicesIdentityCommand(opts),
+      ),
+    );
 
   devices
     .command("join-code")

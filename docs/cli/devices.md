@@ -65,6 +65,28 @@ Paired device display names use this precedence: operator label (`operatorLabel`
 
 Browsers that connect through [OpenClaw ID](/concepts/experimental-features#openclaw-id-remote-access) are marked `(OpenClaw ID)` (`managedBy: "openclaw-id"` in `--json`). Their access belongs to OpenClaw ID membership, so manage them on the **Access** page instead.
 
+### `openclaw devices identity`
+
+Show the device identity this Gateway presents: its `deviceId` and the base64url
+public key it signs with. Both values come from the Gateway process itself
+(`gateway.identity.get`), so they answer "which identity is the Gateway using
+right now?" without reading state files off the host.
+
+```bash
+openclaw devices identity
+openclaw devices identity --json
+```
+
+Text output labels the two fields; `--json` prints the RPC payload verbatim:
+
+```json
+{ "deviceId": "…", "publicKey": "…" }
+```
+
+This is a read-only probe. It changes no pairing state and needs no arguments —
+unlike `devices list`, it reports the Gateway's own identity rather than the
+paired-device table.
+
 ### `openclaw devices approve [requestId] [--latest]`
 
 Approve a pending pairing request by exact `requestId`. Omitting `requestId`, or passing `--latest`, only previews the newest pending request and exits (code 1); rerun with the exact request ID to approve.
